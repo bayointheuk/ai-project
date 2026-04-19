@@ -6,14 +6,12 @@ import pandas as pd
 
 app = FastAPI()
 
+# Load model, scaler, and columns
 model = joblib.load("loan_model.pkl")
 scaler = joblib.load("scaler.pkl")
-
-# IMPORTANT: Load training columns
-# (we will create this file next)
 columns = joblib.load("columns.pkl")
 
-# New input format (simple fields)
+# Define input schema (simple user-friendly input)
 class LoanRequest(BaseModel):
     duration: int
     credit_amount: int
@@ -26,17 +24,17 @@ def home():
 @app.post("/predict")
 def predict(request: LoanRequest):
 
-    # Step 1: Convert to dataframe
+    # Step 1: Convert input to dataframe
     data = pd.DataFrame([{
         "duration": request.duration,
         "credit_amount": request.credit_amount,
         "age": request.age
     }])
 
-    # Step 2: One-hot encode
+    # Step 2: Encode
     data_encoded = pd.get_dummies(data)
 
-    # Step 3: Align columns with training
+    # Step 3: Align with training columns
     data_encoded = data_encoded.reindex(columns=columns, fill_value=0)
 
     # Step 4: Scale
@@ -44,8 +42,18 @@ def predict(request: LoanRequest):
 
     # Step 5: Predict
     prediction = model.predict(data_scaled)[0]
+    probability = model.predict_proba(data_scaled)[0][1]
 
+    # Step 6: Return professional output
     if prediction == 1:
-        return {"prediction": "Approved", "risk": "Low"}
+        return {
+            "decision": "Approved",
+            "risk_level": "Low",
+            "confidence": float(round(probability, 2))
+        }
     else:
-        return {"prediction": "Rejected", "risk": "High"}
+        return {
+            "decision": "Rejected",
+            "risk_level": "High",
+            "confidence": float(round(probability, 2))
+        }
